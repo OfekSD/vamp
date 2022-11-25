@@ -1,19 +1,21 @@
 mod input;
 mod parsing;
-use std::{io::{stdout, Write, BufReader, BufRead}, env, fs::File};
+mod functions;
+use std::io::{stdout, Write};
 use parsing::{parse_input};
+use std::env;
 use anyhow::{Result};
 use input::read_line;
-
+use functions::{get_history,write_history};
 
 
 
 
 
 fn main() -> Result<()>{
+    let mut history = get_history();
     loop {
         // use the `>` character as the prompt
-        // need to explicitly flush this to ensure it prints before read_line
         let mut cwd = env::current_dir().unwrap().display().to_string().split('/').last().unwrap().to_owned();
         if cwd.is_empty(){
             cwd = "".to_string();
@@ -24,11 +26,14 @@ fn main() -> Result<()>{
 
         let mut input = String::new();
 
-        // stdin().read_line(&mut input);
-        read_line(preset, &mut input);
+        read_line(preset, &mut input,&history);
+        if &input != &"".to_string(){
+            write_history(&input,&mut history);
+        }
         let input = input.trim();
 
-        parse_input(input)?
+        parse_input(input)?;
+
         
 
         

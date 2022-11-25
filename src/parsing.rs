@@ -1,16 +1,14 @@
 use std::collections::HashMap;
-use std::fmt::Alignment;
 use std::{env};
 use anyhow::Result;
-use std::error::Error;
 use std::path::Path;
 use std::process::{Command, Stdio,};
-use std::io::{Read, Write, ErrorKind};
+use std::io::{Read, Write};
 use std::str::SplitWhitespace;
 use std::sync::Mutex;
-
+use crate::functions::get_home_dir;
 use lazy_static::lazy_static;
-use regex::{Regex, Matches, CaptureMatches};
+use regex::{Regex, CaptureMatches};
 
 
 lazy_static! {
@@ -20,9 +18,6 @@ lazy_static! {
     };
 }
 
-fn get_home_dir(str: &mut String) {
-    *str = env::home_dir().unwrap().to_str().unwrap().to_string();
-}
 
 fn print_aliases(){
     for (key,val) in ALIASES.lock().unwrap().iter(){
@@ -33,7 +28,6 @@ fn print_aliases(){
 fn create_alias(mut matches: CaptureMatches) -> Result<()>{
     // regex = (\w+)=\"([^"]+)"
     
-   
     while let Some(alias) = matches.next() {
         let key = alias.get(1).unwrap().as_str();
         let val = alias.get(2).unwrap().as_str();
@@ -41,6 +35,13 @@ fn create_alias(mut matches: CaptureMatches) -> Result<()>{
         ALIASES.lock().unwrap().insert(key.to_string(), val.to_string());
     }
     Ok(())
+}
+
+fn get_command(alias: &str)-> Option<String>{
+    match ALIASES.lock().unwrap().get(alias){
+        Some(command) => Some(command.clone()),
+        None => None,
+    }
 }
 
 pub fn parse_input(input: &str) -> Result<()>{
@@ -64,12 +65,27 @@ pub fn parse_input(input: &str) -> Result<()>{
 fn parse_command(input: &str,stdin: String) -> Result<String>{
 
     let mut parts = input.trim().split_whitespace();
-    let command; 
+    let mut command; 
     match parts.next() {
-        Some(inp) => command = inp,
+        Some(c) => command = c,
         None => return Ok(String::new())
     }
-    let mut args: SplitWhitespace = parts;
+    let mut full_command = String::new();
+    match get_command(&command){
+        Some(alias) => {
+            full_command = format!("{} {}",alias, parts.clone().collect::<String>());
+        },
+        None => {},
+    };
+    command = if full_command.len() > 0{
+        parts = full_command.trim().split_whitespace().to_owned();
+        match parts.next(){
+            Some(c) => c,
+            None => return Ok(String::new()),
+        }
+    } else { command };
+
+    let mut args = parts;
     match command {
         "cd" => {
         let mut home_dir = String::new();
@@ -81,7 +97,7 @@ fn parse_command(input: &str,stdin: String) -> Result<String>{
     }
         "alias" => {
             let re = Regex::new(r#"(\w+)="([^"]+)""#).unwrap();
-            let args = args.collect::<String>();
+            let args = args.collect::<Vec<&str>>().join(" ");
             if re.is_match(&args){
                 let matches = re.captures_iter(&args);
                 create_alias(matches);
@@ -93,6 +109,8 @@ fn parse_command(input: &str,stdin: String) -> Result<String>{
         _ => Ok(run_command(command, args,stdin)?)
     }
 }
+
+
 
 fn run_command(command: &str, args: SplitWhitespace, stdin: String) -> Result<String> {
     let mut output;
