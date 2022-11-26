@@ -13,8 +13,12 @@ use regex::{Regex, CaptureMatches};
 
 lazy_static! {
     static ref ALIASES: Mutex<HashMap<String,String>> = {
-    let mut m = Mutex::new(HashMap::new());
-    m
+        let m = Mutex::new(HashMap::new());
+        m
+    };
+    static ref VARIABLES: Mutex<HashMap<String,String>> = {
+        let m = Mutex::new(HashMap::new());
+        m
     };
 }
 
@@ -26,7 +30,6 @@ fn print_aliases(){
 }
 
 fn create_alias(mut matches: CaptureMatches) -> Result<()>{
-    // regex = (\w+)=\"([^"]+)"
     
     while let Some(alias) = matches.next() {
         let key = alias.get(1).unwrap().as_str();
@@ -85,7 +88,7 @@ fn parse_command(input: &str,stdin: String) -> Result<String>{
         }
     } else { command };
 
-    let mut args = parts;
+    let args = parts;
     match command {
         "cd" => {
         let mut home_dir = String::new();
@@ -100,7 +103,7 @@ fn parse_command(input: &str,stdin: String) -> Result<String>{
             let args = args.collect::<Vec<&str>>().join(" ");
             if re.is_match(&args){
                 let matches = re.captures_iter(&args);
-                create_alias(matches);
+                create_alias(matches)?;
             } else {
                 print_aliases();
             }

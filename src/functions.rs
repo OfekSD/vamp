@@ -1,43 +1,50 @@
-use std::{env, path::Path, fs::{File, read}, io::{Read, BufReader, BufRead, Write}};
-
+use std::{path::Path, fs::File, io::{BufReader, BufRead, Write}};
+use dirs::{home_dir};
 
 
 pub fn get_home_dir(str: &mut String) {
-    *str = env::home_dir().unwrap().to_str().unwrap().to_string();
+    *str = home_dir().unwrap().to_str().unwrap().to_string();
 }
 
 
 pub fn get_history() -> Vec<String> {
     
-
+    // getting the path to the history file
     let mut home_dir = String::new();
-    get_home_dir(&mut home_dir); 
+    get_home_dir(&mut home_dir);
     let path = &format!("{}/.vampstory",home_dir);
     let history_path = Path::new(path);
+
+    // putting the history file in the vector
     let mut history: Vec<String> = Vec::new();
     match File::open(history_path){
         Ok(f) => {
             let reader = BufReader::new(&f);
             history = reader.lines().collect::<Result<_,_>>().unwrap();
         },
-        Err(_) => {File::create(history_path);},
+        Err(_) => {File::create(history_path).unwrap();},
     };
 
     history
 }
 
 pub fn write_history(command: &String, history: &mut Vec<String>){
+    if history.len() == 1000{
+        history.remove(0);
+    }
     history.push(command.clone());
 
+    // getting the history file
     let mut home_dir = String::new();
     get_home_dir(&mut home_dir); 
     let path = &format!("{}/.vampstory",home_dir);
     let history_path = Path::new(path);
-    match File::create(history_path){
-        Ok(mut f) => for ln in history {
+    
+    // writing the history to the file
+    if let Ok(mut f) = File::create(history_path){
+        for ln in history {
             writeln!(f,"{}",ln).unwrap();
             
-        },
-        Err(_) => todo!(),
+        }
     }
 }

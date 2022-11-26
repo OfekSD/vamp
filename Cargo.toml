@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.66"
 console = "0.15.2"
+dirs = "4.0.0"
 lazy_static = "1.4.0"
 regex = "1.7.0"
