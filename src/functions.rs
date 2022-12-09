@@ -1,11 +1,12 @@
 use std::{path::Path, fs::File, io::{BufReader, BufRead, Write}};
 use dirs::{home_dir};
 
+use crate::parsing::parse_input;
+
 
 pub fn get_home_dir(str: &mut String) {
     *str = home_dir().unwrap().to_str().unwrap().to_string();
 }
-
 
 pub fn get_history() -> Vec<String> {
     
@@ -46,5 +47,14 @@ pub fn write_history(command: &String, history: &mut Vec<String>){
             writeln!(f,"{}",ln).unwrap();
             
         }
+    }
+}
+
+pub fn run_script(file: &str) {
+    let script = File::open(file).unwrap();
+    let reader = BufReader::new(&script);
+    for line in reader.lines(){
+        let line = line.unwrap();
+        parse_input(line.as_str());
     }
 }

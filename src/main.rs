@@ -7,13 +7,20 @@ use parsing::{parse_input};
 use std::env;
 use anyhow::{Result};
 use input::read_line;
-use functions::{get_history,write_history};
+use functions::{get_history,write_history, run_script};
 
 
 
 
 
 fn main() -> Result<()>{
+    let args: Vec<String> = env::args().collect();
+    if let Some(file) = args.get(1){
+        println!("{file}");
+        run_script(file);
+        return Ok(());
+    };
+    
     let mut history = get_history();
     loop {
         // getting current directory
@@ -44,3 +51,4 @@ fn main() -> Result<()>{
         
     }
 }
+

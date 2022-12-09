@@ -32,6 +32,9 @@ fn get_alias(alias: &str)-> Option<String>{
 }
 
 pub fn parse_input(input: &str) -> Result<()>{
+    if input.starts_with('#'){
+        return Ok(());
+    }
     // spliting the commands 
     let mut commands = input.trim().split(" | ").peekable();
     let mut out = None;
@@ -104,6 +107,9 @@ fn parse_command(input: &str,stdin: Option<Child>,stdout: Stdio) -> Option<Child
 }
 
 fn run_command(command: &str, args: SplitWhitespace, stdin: Option<Child>, stdout: Stdio) -> Option<Child> {
+    if command == "" {
+        return None;
+    }
     let stdin = stdin.map_or(Stdio::inherit(), |out| Stdio::from(out.stdout.unwrap()));
     let output =  Command::new(command)
     .args(args)
