@@ -1,18 +1,14 @@
 use std::collections::HashMap;
-use std::{env};
 use anyhow::{Result, Ok};
-use std::path::{Path, StripPrefixError};
-use std::process::{Command, Stdio,};
-use std::io::{Read, Write};
+use std::process::{Command, Stdio, ChildStdout, Child, exit,};
 use std::str::SplitWhitespace;
 use std::sync::Mutex;
-use crate::functions::get_home_dir;
-use lazy_static::{lazy_static, __Deref};
-use regex::{Regex, CaptureMatches};
+use crate::builtins::{cd, alias};
+use lazy_static::{lazy_static};
 use std::result::Result::Ok as Oks;
 
 lazy_static! {
-    static ref ALIASES: Mutex<HashMap<String,String>> = {
+    pub static ref ALIASES: Mutex<HashMap<String,String>> = {
         let m = Mutex::new(HashMap::new());
         m
     };
@@ -23,21 +19,9 @@ lazy_static! {
 }
 
 
-fn print_aliases(){
-    for (key,val) in ALIASES.lock().unwrap().iter(){
-        println!("alias {}='{}'",key,val);   
-    }
-}
-
-fn create_alias(mut matches: CaptureMatches) -> Result<()>{
-    
-    while let Some(alias) = matches.next() {
-        let key = alias.get(1).unwrap().as_str();
-        let val = alias.get(2).unwrap().as_str();
-
-        ALIASES.lock().unwrap().insert(key.to_string(), val.to_string());
-    }
-    Ok(())
+enum Output {
+    Str(String),
+    Out(ChildStdout)
 }
 
 fn get_alias(alias: &str)-> Option<String>{
@@ -50,23 +34,23 @@ fn get_alias(alias: &str)-> Option<String>{
 pub fn parse_input(input: &str) -> Result<()>{
     // spliting the commands 
     let mut commands = input.trim().split(" | ").peekable();
-
-    let mut output = String::new();
-      
+    let mut out = None;
     while let Some(command) = commands.next(){
-        output = parse_command(command,output)?;
-    }  
-    output = output.trim().to_string(); 
-    if !output.is_empty(){
-        println!("{}",output);
+        let stdout = if commands.peek().is_some(){
+            Stdio::piped()
+        } else {
+            Stdio::inherit()
+        };
+        out = parse_command(command, out,stdout);
     }
-
-
+    if let Some(mut out) = out{
+        out.wait().unwrap();
+    }
     Ok(())
 }
 
 fn decompose_command<'a>(input: &'a str) -> Option<(String,String)> {
-    
+
     let mut command = String::new();
     let mut parts = input.trim().split_whitespace();
     if let Some(c)  = parts.next() {
@@ -89,7 +73,7 @@ fn decompose_command<'a>(input: &'a str) -> Option<(String,String)> {
     Some((command.to_owned() ,parts.collect::<Vec<&str>>().join(" ").to_owned()))
 }
 
-fn parse_command(input: &str,stdin: String) -> Result<String>{
+fn parse_command(input: &str,stdin: Option<Child>,stdout: Stdio) -> Option<Child>{
 
     // let find_vars = Regex::new(r"\$(\w+)|\${(w+)}").unwrap();
     // let vars = find_vars.capture_locations();
@@ -99,55 +83,45 @@ fn parse_command(input: &str,stdin: String) -> Result<String>{
     let  ( command, args )  = if let Some(c) = decompose_command(input){
         c
     } else{
-        return  Ok(String::new());
+        return  None;
     };
     let args = args.trim().split_whitespace();
     let command = command.as_str();
     match command {
         "cd" => {
-        let mut home_dir = String::new();
-        get_home_dir(&mut home_dir);
-        let new_dir = args.peekable().peek().map_or(home_dir.as_str(), |x| *x);
-        let root = Path::new(&new_dir);
-        env::set_current_dir(&root)?;
-        Ok(String::new())
-    }
-        "alias" => {
-            let re = Regex::new(r#"(\w+)="([^"]+)""#).unwrap();
-            let args = args.collect::<Vec<&str>>().join(" ");
-            if re.is_match(&args){
-                println!("match");
-                let matches = re.captures_iter(&args);
-                create_alias(matches)?;
-            } else {
-                print_aliases();
-            }
-            Ok(String::new())
+        cd(args);
+        None
+        },
+        "exit" => {
+            exit(0)
         }
-        _ => Ok(run_command(command, args,stdin)?)
+        "alias" => {
+            alias(args);
+            None
+        }
+        _ => run_command(command, args,stdin,stdout)
     }
 }
 
-
-
-fn run_command(command: &str, args: SplitWhitespace, stdin: String) -> Result<String> {
-    let mut output;
-     
-    match Command::new(command)
+fn run_command(command: &str, args: SplitWhitespace, stdin: Option<Child>, stdout: Stdio) -> Option<Child> {
+    let stdin = stdin.map_or(Stdio::inherit(), |out| Stdio::from(out.stdout.unwrap()));
+    let output =  Command::new(command)
     .args(args)
-    .stdin(Stdio::piped())
-    .stdout(Stdio::piped())
-    .spawn(){
-        Oks(out) => output = out,
-        Err(_) => {println!("{}: command not found",command);
-    return  Ok(String::new());},
+    .stdin(stdin)
+    .stdout(stdout)
+    .spawn();
+    match output{
+        Oks(output) => {
+            // output.stdin.as_mut().unwrap().write(format!("{}\n",stdin).as_bytes()).unwrap();
+            // let mut out = String::new();
+            // output.stdout.as_mut().unwrap().read_to_string(&mut out).unwrap();
+            // Ok(out)
+            Some(output)
+        },
+        Err(e) => {
+            eprintln!("{}",e);
+            None
+        },
     }
-    
 
-    output.stdin.as_mut().unwrap().write(format!("{}\n",stdin).as_bytes()).unwrap();
-    output.wait().unwrap();
-    let mut out = String::new();
-    output.stdout.as_mut().unwrap().read_to_string(&mut out).unwrap();
-    Ok(out)
-
-}
+}   

@@ -1,6 +1,7 @@
 mod input;
 mod parsing;
 mod functions;
+mod builtins;
 use std::io::{stdout, Write};
 use parsing::{parse_input};
 use std::env;
