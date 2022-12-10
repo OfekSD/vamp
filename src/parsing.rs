@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use std::io::Read;
-use std::{env};
+use std::fs::{File, self};
+use std::io::{Read,Write};
+use std::env;
 use regex::Regex;
 use std::process::{Command, Stdio, Child, exit,};
 use std::str::SplitWhitespace;
@@ -8,6 +9,16 @@ use std::sync::Mutex;
 use crate::builtins::{cd, alias, create_variable};
 use crate::functions::find_and_replace;
 use lazy_static::{lazy_static};
+
+#[derive(PartialEq, Eq)]
+enum WriteMode {
+    New,
+    Append,
+    None,
+}
+
+
+
 
 lazy_static! {
     pub static ref ALIASES: Mutex<HashMap<String,String>> = {
@@ -36,17 +47,60 @@ pub fn parse_input(input: &str) {
     // spliting the commands 
     let mut commands = input.trim().split(" | ").peekable();
     let mut out = None;
-    while let Some(command) = commands.next(){
-        let stdout = if commands.peek().is_some(){
+    let mut write_mode = WriteMode::None; 
+    while let Some(mut command) = commands.next(){
+        let mut file = "";
+        if command.contains('>'){
+            if command.contains(">>"){
+                (command, file) = command.split_once(">>").unwrap();
+                write_mode = WriteMode::Append;
+            } else {
+                (command, file) = command.split_once('>').unwrap();
+                write_mode = WriteMode::New;
+            }
+        }
+        let stdout = if commands.peek().is_some() || write_mode != WriteMode::None {
             Stdio::piped()
         } else {
             Stdio::inherit()
         };
         out = parse_command(command, out,stdout);
+        if write_mode != WriteMode::None{
+            let mut output = String::new();
+            if let Some(out_child) = out{
+                out_child.stdout.unwrap().read_to_string(&mut output).unwrap();
+                out = None
+            }
+            match write_mode{
+                WriteMode::New => {
+                    match File::create(file.trim()){
+                        Ok(mut f) => writeln!(f,"{}",output).unwrap(),
+                        Err(e) => eprintln!("{e}"),
+                    };
+                }
+                WriteMode::Append => {
+                    match fs::OpenOptions::new()
+                    .write(true)
+                    .append(true)
+                    .create(true)
+                    .open(file.trim())
+                    {
+                        Ok(mut f) => writeln!(f,"{}",output).unwrap(),
+                        Err(e) => eprintln!("{e}"),
+                    }
+
+                },
+                _ => (),
+                
+                
+
+            }
+        }
     }
     if let Some(mut out) = out{
         out.wait().unwrap();
     }
+
 }
 
 

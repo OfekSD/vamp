@@ -1,4 +1,0 @@
-#!/bin/vamp
-echo hi
-alias ll="ls -l"
-ll
