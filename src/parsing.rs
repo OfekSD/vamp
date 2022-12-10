@@ -1,28 +1,26 @@
 use std::collections::HashMap;
-use anyhow::{Result, Ok};
-use std::process::{Command, Stdio, ChildStdout, Child, exit,};
+use std::io::Read;
+use std::{env};
+use regex::Regex;
+use std::process::{Command, Stdio, Child, exit,};
 use std::str::SplitWhitespace;
 use std::sync::Mutex;
-use crate::builtins::{cd, alias};
+use crate::builtins::{cd, alias, create_variable};
+use crate::functions::find_and_replace;
 use lazy_static::{lazy_static};
-use std::result::Result::Ok as Oks;
 
 lazy_static! {
     pub static ref ALIASES: Mutex<HashMap<String,String>> = {
         let m = Mutex::new(HashMap::new());
         m
     };
-    static ref VARIABLES: Mutex<HashMap<String,String>> = {
+    pub static ref VARIABLES: Mutex<HashMap<String,String>> = {
         let m = Mutex::new(HashMap::new());
         m
     };
 }
 
 
-enum Output {
-    Str(String),
-    Out(ChildStdout)
-}
 
 fn get_alias(alias: &str)-> Option<String>{
     match ALIASES.lock().unwrap().get(alias){
@@ -31,9 +29,9 @@ fn get_alias(alias: &str)-> Option<String>{
     }
 }
 
-pub fn parse_input(input: &str) -> Result<()>{
+pub fn parse_input(input: &str) {
     if input.starts_with('#'){
-        return Ok(());
+        return ;
     }
     // spliting the commands 
     let mut commands = input.trim().split(" | ").peekable();
@@ -49,8 +47,8 @@ pub fn parse_input(input: &str) -> Result<()>{
     if let Some(mut out) = out{
         out.wait().unwrap();
     }
-    Ok(())
 }
+
 
 fn decompose_command<'a>(input: &'a str) -> Option<(String,String)> {
 
@@ -76,10 +74,47 @@ fn decompose_command<'a>(input: &'a str) -> Option<(String,String)> {
     Some((command.to_owned() ,parts.collect::<Vec<&str>>().join(" ").to_owned()))
 }
 
-fn parse_command(input: &str,stdin: Option<Child>,stdout: Stdio) -> Option<Child>{
 
-    // let find_vars = Regex::new(r"\$(\w+)|\${(w+)}").unwrap();
-    // let vars = find_vars.capture_locations();
+
+fn parse_command(input: &str,stdin: Option<Child>,stdout: Stdio) -> Option<Child>{
+    
+    let inlines = find_and_replace(input,r"(?:`([^`]+)`|\$\((.+)\))",|command|{
+        let mut result = String::new();
+        if let Some(output) = parse_command(command,None,Stdio::piped()){
+            let mut out = String::new(); 
+            output.stdout.unwrap().read_to_string(&mut out).unwrap_or_default();
+            for line in out.lines(){
+                result.push_str(&format!(" {}", line));
+            }
+        }
+        result
+    });
+    let input = inlines.as_str();    
+    
+    // let bracket_inline = find_and_replace(input, r#"\$\((.+)\)"#, |command|{
+        // let mut result = String::new();
+        // 
+        // 
+    // });
+    
+    let vars = find_and_replace(input, r"\$(\w+)" , |var_name|{
+        env::var(&var_name).
+        unwrap_or_else(|_|{
+            VARIABLES.lock().unwrap()
+            .get(var_name)
+            .unwrap_or(&String::new()).to_owned()
+        })
+    });
+
+    let input = vars.as_str();
+    
+    let create_vars = Regex::new(r#"^(\w+)=(.+)"#).unwrap();
+    if let Some(var) = create_vars.captures_iter(input).next(){
+        let name = var.get(1).unwrap().as_str();
+        let value = var.get(2).unwrap().as_str();
+        create_variable(name,value);   
+        return None;
+    }
 
     
    
@@ -106,6 +141,8 @@ fn parse_command(input: &str,stdin: Option<Child>,stdout: Stdio) -> Option<Child
     }
 }
 
+
+
 fn run_command(command: &str, args: SplitWhitespace, stdin: Option<Child>, stdout: Stdio) -> Option<Child> {
     if command == "" {
         return None;
@@ -117,11 +154,7 @@ fn run_command(command: &str, args: SplitWhitespace, stdin: Option<Child>, stdou
     .stdout(stdout)
     .spawn();
     match output{
-        Oks(output) => {
-            // output.stdin.as_mut().unwrap().write(format!("{}\n",stdin).as_bytes()).unwrap();
-            // let mut out = String::new();
-            // output.stdout.as_mut().unwrap().read_to_string(&mut out).unwrap();
-            // Ok(out)
+        Ok(output) => {
             Some(output)
         },
         Err(e) => {

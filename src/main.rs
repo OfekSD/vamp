@@ -44,7 +44,7 @@ fn main() -> Result<()>{
         let input = input.trim();
         
         // parsing input
-        parse_input(input)?;
+        parse_input(input);
 
         
 

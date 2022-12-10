@@ -2,7 +2,7 @@ use std::{str::SplitWhitespace, path::Path, env};
 
 use regex::{Regex, CaptureMatches};
 
-use crate::{functions::get_home_dir, parsing::ALIASES};
+use crate::{functions::get_home_dir, parsing::{ALIASES, VARIABLES}};
 
 pub fn cd(args: SplitWhitespace){
     let mut home_dir = String::new();
@@ -40,4 +40,8 @@ fn create_alias(mut matches: CaptureMatches) {
 
         ALIASES.lock().unwrap().insert(key.to_string(), val.to_string());
     }
+}
+
+pub fn create_variable(name: &str, value: &str) {
+    VARIABLES.lock().unwrap().insert(name.to_owned(), value.to_owned());
 }

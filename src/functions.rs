@@ -1,5 +1,6 @@
 use std::{path::Path, fs::File, io::{BufReader, BufRead, Write}};
 use dirs::{home_dir};
+use regex::{Regex};
 
 use crate::parsing::parse_input;
 
@@ -57,4 +58,37 @@ pub fn run_script(file: &str) {
         let line = line.unwrap();
         parse_input(line.as_str());
     }
+}
+
+
+pub fn find_and_replace(input: &str, regex: &str, f: fn(&str) -> String) -> String {
+   
+    let mut command = String::new();
+    let mut last_end = 0;
+    let re = Regex::new(regex).unwrap();
+    let results = re.captures_iter(input);
+    
+    for result in results{
+        let mut result = result.iter().filter(|group|{
+            group.is_some()
+        });
+        let out = result.next().unwrap().unwrap();
+        let iner = result.next().unwrap().unwrap();
+        let start = out.start();
+        let end = out.end();
+        let between = &input[iner.start()..iner.end()];
+        
+        let new_value = f(between);
+        
+        command.push_str(&input[last_end..start]);
+        command.push_str(&new_value);
+        last_end = end
+        
+
+    }
+
+    command.push_str(&input[last_end..]);
+    command
+    
+    
 }
