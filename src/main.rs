@@ -14,6 +14,8 @@ use functions::{get_history,write_history, run_script, get_home_dir};
 
 
 fn main() -> Result<()>{
+
+
     let args: Vec<String> = env::args().collect();
     if let Some(file) = args.get(1){
         run_script(file);

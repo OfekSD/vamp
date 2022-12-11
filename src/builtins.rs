@@ -1,22 +1,22 @@
-use std::{str::SplitWhitespace, path::Path, env};
+use std::{path::Path, env};
 
 use regex::{Regex, CaptureMatches};
 
 use crate::{functions::get_home_dir, parsing::{ALIASES, VARIABLES}};
 
-pub fn cd(args: SplitWhitespace){
+pub fn cd(args: Vec<String>){
     let mut home_dir = String::new();
     get_home_dir(&mut home_dir);
-    let new_dir = args.peekable().peek().map_or(home_dir.as_str(), |x| *x);
+    let new_dir = args.iter().peekable().peek().map_or(home_dir.as_str(), |x| *x);
     let root = Path::new(&new_dir);
     if let Err(e) = env::set_current_dir(&root){
     eprintln!("{}",e);
     };
 }
 
-pub fn alias(args: SplitWhitespace){
+pub fn alias(args: Vec<String>){
     let re = Regex::new(r#"(\w+)="([^"]+)""#).unwrap();
-    let args = args.collect::<Vec<&str>>().join(" ");
+    let args = args.join(" ");
     if re.is_match(&args){
         let matches = re.captures_iter(&args);
         create_alias(matches);

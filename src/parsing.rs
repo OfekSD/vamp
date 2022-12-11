@@ -4,10 +4,9 @@ use std::io::{Read,Write};
 use std::env;
 use regex::Regex;
 use std::process::{Command, Stdio, Child, exit,};
-use std::str::SplitWhitespace;
 use std::sync::Mutex;
 use crate::builtins::{cd, alias, create_variable};
-use crate::functions::find_and_replace;
+use crate::functions::{find_and_replace, get_args};
 use lazy_static::{lazy_static};
 
 #[derive(PartialEq, Eq)]
@@ -145,11 +144,9 @@ fn parse_command(input: &str,stdin: Option<Child>,stdout: Stdio) -> Option<Child
     });
     let input = inlines.as_str();    
     
-    // let bracket_inline = find_and_replace(input, r#"\$\((.+)\)"#, |command|{
-        // let mut result = String::new();
-        // 
-        // 
-    // });
+    // Regex For Variables "([^"]+)"|'([^']+)'|([\S]+)
+    
+
     
     let vars = find_and_replace(input, r"\$(\w+)" , |var_name|{
         env::var(&var_name).
@@ -177,7 +174,7 @@ fn parse_command(input: &str,stdin: Option<Child>,stdout: Stdio) -> Option<Child
     } else{
         return  None;
     };
-    let args = args.trim().split_whitespace();
+    let args = get_args(args);
     let command = command.as_str();
     match command {
         "cd" => {
@@ -197,7 +194,7 @@ fn parse_command(input: &str,stdin: Option<Child>,stdout: Stdio) -> Option<Child
 
 
 
-fn run_command(command: &str, args: SplitWhitespace, stdin: Option<Child>, stdout: Stdio) -> Option<Child> {
+fn run_command(command: &str, args: Vec<String>, stdin: Option<Child>, stdout: Stdio) -> Option<Child> {
     if command == "" {
         return None;
     }
@@ -212,9 +209,10 @@ fn run_command(command: &str, args: SplitWhitespace, stdin: Option<Child>, stdou
             Some(output)
         },
         Err(e) => {
-            eprintln!("{}",e);
+            eprintln!("{command}: {}",e);
             None
         },
     }
 
 }   
+

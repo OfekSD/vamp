@@ -92,3 +92,21 @@ pub fn find_and_replace(input: &str, regex: &str, f: fn(&str) -> String) -> Stri
     
     
 }
+
+
+pub fn get_args(input: String) -> Vec<String> {
+    let re: Regex = Regex::new(r#""([^"]+)"|'([^']+)'|([\S]+)"#).unwrap();
+    let mut args = Vec::new();
+
+    for cap in re.captures_iter(&input){
+        let mut caps = cap.iter().skip(1).filter(|group|{
+            group.is_some()
+        });
+        let arg = caps.next().unwrap().unwrap();
+        args.push(input[arg.start()..arg.end()].to_owned());
+    };
+
+    args
+
+
+}
