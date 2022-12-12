@@ -2,11 +2,12 @@ use std::collections::HashMap;
 use std::fs::{File, self};
 use std::io::{Read,Write};
 use std::env;
+use dirs::home_dir;
 use regex::Regex;
 use std::process::{Command, Stdio, Child, exit,};
 use std::sync::Mutex;
 use crate::builtins::{cd, alias, create_variable};
-use crate::functions::{find_and_replace, get_args};
+use crate::functions::{find_and_replace, get_args, get_home_dir};
 use lazy_static::{lazy_static};
 
 #[derive(PartialEq, Eq)]
@@ -130,7 +131,12 @@ fn decompose_command<'a>(input: &'a str) -> Option<(String,String)> {
 
 
 fn parse_command(input: &str,stdin: Option<Child>,stdout: Stdio) -> Option<Child>{
-    
+    let mut home_dir = String::new();
+    get_home_dir(&mut home_dir);
+
+    let binding = input.replace('~', &home_dir);
+    let input = binding.as_str();
+
     let inlines = find_and_replace(input,r"(?:`([^`]+)`|\$\((.+)\))",|command|{
         let mut result = String::new();
         if let Some(output) = parse_command(command,None,Stdio::piped()){
@@ -162,7 +168,12 @@ fn parse_command(input: &str,stdin: Option<Child>,stdout: Stdio) -> Option<Child
     let create_vars = Regex::new(r#"^(\w+)=(.+)"#).unwrap();
     if let Some(var) = create_vars.captures_iter(input).next(){
         let name = var.get(1).unwrap().as_str();
-        let value = var.get(2).unwrap().as_str();
+        let mut value = var.get(2).unwrap().as_str();
+        if value.starts_with('\'') && value.ends_with('\''){
+            value = value.strip_prefix("'").unwrap().strip_suffix("'").unwrap();
+        } else if value.starts_with('"') && value.ends_with('"') {
+            value = value.strip_prefix('"').unwrap().strip_suffix('"').unwrap();
+        }
         create_variable(name,value);   
         return None;
     }

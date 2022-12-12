@@ -5,7 +5,7 @@ use regex::{Regex};
 use crate::parsing::parse_input;
 
 
-pub fn get_home_dir(str: &mut String) {
+pub fn get_home_dir(str: &mut String){
     *str = home_dir().unwrap().to_str().unwrap().to_string();
 }
 
