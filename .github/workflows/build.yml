@@ -18,7 +18,8 @@ jobs:
       run: cargo build --verbose --release
     - name: Run tests
       run: cargo test --verbose
-    - run: cargo login ${{ secrets.CARGO_API_KEY }}
+    - name: Login to crates.io
+      run: cargo login ${{ secrets.CARGO_API_KEY }}
     - name: Publishing...
       run: cargo publish
     - uses: actions/upload-artifact@v3

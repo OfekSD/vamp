@@ -31,7 +31,6 @@ lazy_static! {
 }
 
 
-
 fn get_alias(alias: &str)-> Option<String>{
     match ALIASES.lock().unwrap().get(alias){
         Some(command) => Some(command.clone()),
@@ -73,7 +72,7 @@ pub fn parse_input(input: &str) {
             match write_mode{
                 WriteMode::New => {
                     match File::create(file.trim()){
-                        Ok(mut f) => writeln!(f,"{}",output).unwrap(),
+                        Ok(mut f) => writeln!(f,"{}",output.trim()).unwrap(),
                         Err(e) => eprintln!("{e}"),
                     };
                 }
@@ -84,7 +83,7 @@ pub fn parse_input(input: &str) {
                     .create(true)
                     .open(file.trim())
                     {
-                        Ok(mut f) => writeln!(f,"{}",output).unwrap(),
+                        Ok(mut f) => writeln!(f,"{}",output.trim()).unwrap(),
                         Err(e) => eprintln!("{e}"),
                     }
 
@@ -101,7 +100,6 @@ pub fn parse_input(input: &str) {
     }
 
 }
-
 
 fn decompose_command<'a>(input: &'a str) -> Option<(String,String)> {
 
@@ -126,8 +124,6 @@ fn decompose_command<'a>(input: &'a str) -> Option<(String,String)> {
     
     Some((command.to_owned() ,parts.collect::<Vec<&str>>().join(" ").to_owned()))
 }
-
-
 
 fn parse_command(input: &str,stdin: Option<Child>,stdout: Stdio) -> Option<Child>{
     let mut home_dir = String::new();
@@ -202,8 +198,6 @@ fn parse_command(input: &str,stdin: Option<Child>,stdout: Stdio) -> Option<Child
     }
 }
 
-
-
 fn run_command(command: &str, args: Vec<String>, stdin: Option<Child>, stdout: Stdio) -> Option<Child> {
     if command == "" {
         return None;
@@ -226,3 +220,43 @@ fn run_command(command: &str, args: Vec<String>, stdin: Option<Child>, stdout: S
 
 }   
 
+
+#[cfg(test)]
+mod tests {
+    use std::{env, fs::File};
+    use std::io::{BufReader, Read, self};
+    use super::{parse_input};
+
+    fn read_file(path: &str) -> io::Result<String>{
+        let mut str = String::new();
+        let file = File::open(path)?;
+        let mut buffer_reader = BufReader::new(file);
+        buffer_reader.read_to_string(&mut str)?;
+        Ok(str)
+    }
+
+    #[test]
+    fn test_raw_input() {
+        let dir = env::temp_dir();
+        
+        parse_input(format!("echo line 1 > {}/raw_test", dir.display()).as_str());
+        assert_eq!(read_file(format!("{}/raw_test",dir.display()).as_str()).unwrap().trim(), "line 1");
+        
+        parse_input(format!("echo line 2 >> {}/raw_test", dir.display()).as_str());
+        assert_eq!(read_file(format!("{}/raw_test",dir.display()).as_str()).unwrap().trim(), "line 1\nline 2");
+        
+        parse_input(format!("> {}/raw_test", dir.display()).as_str());
+        assert_eq!(read_file(format!("{}/raw_test",dir.display()).as_str()).unwrap().trim(), "");
+        
+        
+        parse_input("test='Testing...'");
+        parse_input(format!("echo $test> {}/raw_test", dir.display()).as_str());
+        assert_eq!(read_file(format!("{}/raw_test",dir.display()).as_str()).unwrap().trim(), "Testing...");
+
+
+
+        parse_input(format!("rm -f {}/raw_test", dir.display()).as_str());
+        assert_eq!(read_file(format!("{}/raw_test",dir.display()).as_str()).err().unwrap().kind(), io::ErrorKind::NotFound);
+    }
+
+}
