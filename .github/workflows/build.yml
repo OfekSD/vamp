@@ -21,4 +21,5 @@ jobs:
     - uses: actions/upload-artifact@v3
       with: 
         name: vamp
-        path: ./target/release/vamp
+        path: ${github.workspace}/target/release/vamp
+        
