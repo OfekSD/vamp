@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::fs::{File, self};
 use std::io::{Read,Write};
 use std::env;
-use dirs::home_dir;
 use regex::Regex;
 use std::process::{Command, Stdio, Child, exit,};
 use std::sync::Mutex;
