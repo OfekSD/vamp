@@ -17,9 +17,14 @@ jobs:
     - name: Build
       run: cargo build --verbose --release
     - name: Run tests
-      run: cargo test --verbose 
+      run: cargo test --verbose
+    - run: cargo login ${{ secrets.CARGO_API_KEY }}
+    - name: Publishing...
+      run: cargo publish
     - uses: actions/upload-artifact@v3
       with: 
         name: vamp
         path: ${{ github.workspace }}/target/release/vamp
+        
+        
         
