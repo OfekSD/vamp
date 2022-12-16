@@ -3,6 +3,16 @@ use std::io::Write;
 use anyhow::{Result, Ok};
 use console::{Term, Key};
 
+
+#[derive(PartialEq, Eq)]
+enum State {
+    Input,
+    ReverseSearch,
+} 
+    
+const CONTROL_R: char = '';
+
+
 fn move_cursor_to_start(term: &Term,cursor_index:&mut usize) -> Result<()>{
     term.move_cursor_left(*cursor_index)?;
     *cursor_index = 0;
@@ -28,19 +38,24 @@ fn reprint_line(term: &mut Term,preset: &String, inp: &String)
 pub fn read_line(preset: String, inp: &mut String, history: &Vec<String>)
 -> Result<()>
 {
+    let mut STATE = State::Input;
     *inp = String::new();
     let mut term = Term::stdout();
     let mut cursor_index = 0;
     let mut history_index = history.len();
     let mut current_input = String::new();
+    let mut reverse_search = String::new();
     loop {
 
         match term.read_key().unwrap(){
             Key::ArrowLeft => {
-                if cursor_index > 0
-                {
-                    term.move_cursor_left(1)?;
-                    cursor_index-=1;
+                if STATE == State::Input{
+
+                    if cursor_index > 0
+                    {
+                        term.move_cursor_left(1)?;
+                        cursor_index-=1;
+                    }
                 }
             },
             Key::ArrowRight => 
@@ -67,31 +82,41 @@ pub fn read_line(preset: String, inp: &mut String, history: &Vec<String>)
                     *inp = current_input.clone();
                     move_cursor_to_end(&term, &mut cursor_index, inp)?;
                     reprint_line(&mut term, &preset, inp)?;
-                    continue;
                     
-                }
-                if history_index > history.len(){
+                    
+                } else if history_index > history.len(){
                     history_index = history.len();
                     continue;
 
+                } else {
+                    *inp = history.get(history_index).unwrap().clone();
+                    move_cursor_to_end(&term, &mut cursor_index, inp)?;
+                    reprint_line(&mut term, &preset, inp)?;
                 }
-                *inp = history.get(history_index).unwrap().clone();
-                move_cursor_to_end(&term, &mut cursor_index, inp)?;
-                reprint_line(&mut term, &preset, inp)?;
-
+                    
             },
             Key::Enter => {
                 term.write_line("")?;
                 return Ok(())
             },
             Key::Backspace => {
-                if ( 0 < cursor_index ) && (cursor_index <= inp.len()){
+            match STATE {
+                State::Input => {
+                    if ( 0 < cursor_index ) && (cursor_index <= inp.len()){
+    
+                        cursor_index-=1;
+                        inp.remove(cursor_index);
+                        reprint_line(&mut term, &preset, inp)?;
+                        term.move_cursor_left(inp.len()-cursor_index)?;
+                    }
 
-                    cursor_index-=1;
-                    inp.remove(cursor_index);
-                    reprint_line(&mut term, &preset, inp)?;
-                    term.move_cursor_left(inp.len()-cursor_index)?;
                 }
+                State::ReverseSearch => {
+                    reverse_search.pop();
+                    reprint_line(&mut term, &"(reverse search) ".to_string(), &reverse_search)?;
+
+                },
+            }
             },
             Key::Home => {
                 term.move_cursor_left(cursor_index)?;
@@ -110,10 +135,37 @@ pub fn read_line(preset: String, inp: &mut String, history: &Vec<String>)
                 }
             },
             Key::Char(c) => {
-                inp.insert(cursor_index, c);
-                cursor_index+=1;
-                reprint_line(&mut term, &preset, inp)?;
-                term.move_cursor_left(inp.len()-cursor_index)?;
+                if c.eq(&CONTROL_R){
+                    match STATE{
+                        State::Input => {
+                            STATE=State::ReverseSearch;
+                            term.hide_cursor()?;
+                            reprint_line(&mut term, &"(reverse search) ".to_string(), &reverse_search)?;
+                        },
+                        State::ReverseSearch => {
+                            STATE = State::Input;
+                            term.show_cursor()?;
+                            reprint_line(&mut term, &preset, inp)?;
+
+                        },
+                    }
+                }
+                else {
+                match STATE {
+                    State::Input => {
+                        inp.insert(cursor_index, c);
+                        cursor_index+=1;
+                        reprint_line(&mut term, &preset, inp)?;
+                        term.move_cursor_left(inp.len()-cursor_index)?;
+                    },
+                    State::ReverseSearch => {
+                        reverse_search.push(c);
+                        reprint_line(&mut term, &"(reverse search) ".to_string(), &reverse_search)?;
+
+                    },
+                }
+
+                }
             },
             _ => (),
         }
