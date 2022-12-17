@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::{io::Write};
 
 use anyhow::{Result, Ok};
 use console::{Term, Key};
@@ -41,7 +41,7 @@ fn input_mode(term: &mut Term,
     reverse_search: &mut String,
     preset: &String, history: &Vec<String>,
     cursor_index: &mut usize, history_index: &mut usize,
-    STATE: &mut State
+    state: &mut State
 ) -> Result<()>{
     match term.read_key().unwrap(){
         Key::ArrowLeft => {
@@ -69,6 +69,7 @@ fn input_mode(term: &mut Term,
             move_cursor_to_end(&term, cursor_index, inp)?;
             reprint_line(term, &preset, inp)?;
 
+
         },
         Key::ArrowDown => {
             *history_index += 1;
@@ -90,7 +91,7 @@ fn input_mode(term: &mut Term,
         },
         Key::Enter => {
             term.write_line("")?;
-            *STATE = State::Send;
+            *state = State::Send;
             return Ok(())
         },
         Key::Backspace => {
@@ -111,7 +112,7 @@ fn input_mode(term: &mut Term,
         },
         Key::Del => {
             let ln = inp.len(); 
-            if ln == *cursor_index{Ok(());}
+            if ln == *cursor_index{return Ok(());}
             if ln > 0{
                 inp.remove(*cursor_index);
                 reprint_line(term, &preset, inp)?;
@@ -120,8 +121,8 @@ fn input_mode(term: &mut Term,
         },
         Key::Char(c) => {
             if c.eq(&CONTROL_R){
-                    *STATE=State::ReverseSearch;
-                    term.hide_cursor()?;
+                    *state=State::ReverseSearch;
+                    move_cursor_to_start(&term, cursor_index)?;
                     reprint_line(term, &"(reverse search) ".to_string(), &reverse_search)?;
                 } else {
                 inp.insert(*cursor_index, c);
@@ -133,7 +134,84 @@ fn input_mode(term: &mut Term,
             },
         _ => (),
     };
+    
     Ok(())
+}
+
+fn search_history(reverse_search: &String, history: &Vec<String>) -> Vec<usize>{
+    let mut results = Vec::new();
+    history.iter().enumerate().for_each(|(ind, command)|{
+        if command.contains(reverse_search){
+            results.push(ind)
+        }
+    });
+
+    results
+}
+
+fn reverse_search_mode(
+    term: &mut Term, 
+    inp: &mut String, current_input: &mut String,
+    reverse_search: &mut String,
+    reverse_search_results: &mut Vec<usize>,
+    preset: &String, history: &Vec<String>,
+    cursor_index: &mut usize,history_index: &mut usize, reverse_search_index: &mut usize,
+    state: &mut State
+) -> Result<()>
+{
+    match term.read_key().unwrap() {
+        Key::Backspace => {
+            reverse_search.pop();
+            *reverse_search_results = search_history(&reverse_search, history);
+            if !reverse_search_results.is_empty(){
+                *reverse_search_index = reverse_search_results.len() - 1;
+            }
+            
+        },
+        Key::Char(c) => {
+            if c.eq(&CONTROL_R){
+                if reverse_search.is_empty(){
+                    *state = State::Input;
+                    reprint_line(term, &preset, inp)?;
+                    return Ok(());
+                }
+                *reverse_search_index -= 1;
+            } else {   
+                (*reverse_search).push(c);
+                
+                *reverse_search_results = search_history(&reverse_search, history);
+                if !reverse_search_results.is_empty(){
+                    *reverse_search_index = reverse_search_results.len() - 1;
+                }
+            }
+        },
+        _ => {
+            *state = State::Input;
+            *history_index =  if reverse_search_results.is_empty(){
+                *history_index
+            } else {
+                *reverse_search_results.get(*reverse_search_index).unwrap()
+            };
+            if current_input.is_empty(){
+                *current_input = inp.clone();
+            } 
+            *inp = history.get(*history_index).unwrap().to_string();
+            move_cursor_to_end(&term, cursor_index, inp)?;
+            reprint_line(term, &preset, inp)?;
+            return Ok(());
+        },
+    };
+
+    let result;
+    if reverse_search_results.is_empty(){
+        result = reverse_search.clone();
+    } else {
+        let command = history.get(*reverse_search_results.get(*reverse_search_index).unwrap()).unwrap().to_string();
+        result = command.replace(&*reverse_search, &format!("{}",console::Style::new().cyan().apply_to(&*reverse_search)));
+    }
+    reprint_line(term, &"(reverse search) ".to_string(), &result)?;
+    Ok(())
+
 }
 
 
@@ -141,17 +219,21 @@ fn input_mode(term: &mut Term,
 pub fn read_line(preset: String, inp: &mut String, history: &Vec<String>)
 -> Result<()>
 {
-    let mut STATE = State::Input;
+    let mut state = State::Input;
     *inp = String::new();
     let mut term = Term::stdout();
     let mut cursor_index = 0;
     let mut history_index = history.len();
+    let mut reverse_search_index = 0;
     let mut current_input = String::new();
     let mut reverse_search = String::new();
+    let mut reverse_search_results = Vec::new();
     loop {
-        match STATE {
-            State::Input => input_mode(&mut term, inp, &mut current_input, &mut reverse_search, &preset, history, &mut cursor_index, &mut history_index, &mut STATE)?,
-            State::ReverseSearch => {todo!()},
+        match state {
+            State::Input => input_mode(&mut term, inp, &mut current_input, &mut reverse_search, &preset, history, &mut cursor_index, &mut history_index, &mut state)?,
+            State::ReverseSearch => reverse_search_mode(&mut term, inp, &mut current_input,
+                &mut reverse_search, &mut reverse_search_results, &preset, history, 
+                &mut cursor_index, &mut history_index, &mut reverse_search_index, &mut state)?,
             State::Send => {return Ok(());}
         }
         
